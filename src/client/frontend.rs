@@ -1,65 +1,80 @@
-use crate::client::commands::Command;
-use futures_util::stream::{SplitSink, SplitStream, StreamExt};
+use serde::{Deserialize, Serialize};
+use std::error;
+use tokio::io::{AsyncBufReadExt, BufReader, Stdin};
 
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::net::TcpStream;
-use tokio::select;
-use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ListChatRoomsCommand {}
 
-type MyWebSocketStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
-type MyRead = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
-type MyWrite = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
-
-// TODO
-// - better error handeling
-
-pub struct FrontEnd {
-    server_ip_addr: &'static str,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MakeChatRoomCommand {
+    pub room_name: String,
 }
 
-impl FrontEnd {
-    pub fn new(server_ip_addr: &'static str) -> Self {
-        println!("Starting client ...");
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JoinChatRoomCommand {
+    pub room_name: String,
+}
 
-        return FrontEnd { server_ip_addr };
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Command {
+    ListChatRooms(ListChatRoomsCommand),
+    JoinChatRoom(JoinChatRoomCommand),
+    MakeChatRoom(MakeChatRoomCommand),
+    Message(String),
+}
+
+impl Command {
+    pub fn from_arguments(arguments: Vec<String>) -> Result<Command, Box<dyn error::Error>> {
+        println!("parsing command: {arguments:?}");
+
+        let mut arguments = arguments.into_iter();
+
+        let keyword = arguments.next().expect("expected args");
+
+        let command = match &keyword[..] {
+            "make" => Command::MakeChatRoom(MakeChatRoomCommand {
+                room_name: arguments
+                    .next()
+                    .ok_or_else(|| "make chat room not enough args")?,
+            }),
+            "list" => Command::ListChatRooms(ListChatRoomsCommand {}),
+            "join" => Command::JoinChatRoom(JoinChatRoomCommand {
+                room_name: arguments
+                    .next()
+                    .ok_or_else(|| "make join chat room not enough args")?,
+            }),
+            _ => {
+                panic!("not a valid commend");
+            }
+        };
+
+        Ok(command)
     }
 
-    pub async fn connect_to_server(&self) -> MyWebSocketStream {
-        println!("Connecting to server ...");
+    pub fn new(line: String) -> Result<Self, Box<dyn error::Error>> {
+        if line.starts_with("/") {
+            let args: Vec<String> = line
+                .get(1..)
+                .ok_or("test")?
+                .split(" ")
+                .map(str::to_string)
+                .collect();
 
-        match connect_async(self.server_ip_addr).await {
-            Ok((ws_stream, _)) => {
-                println!("Connected to server");
-                return ws_stream;
-            }
-            Err(err) => {
-                panic!("Failed to connect to server {err:?}");
-            }
+            return Ok(Command::from_arguments(args)?);
+        } else {
+            return Ok(Command::Message(line));
         }
     }
-
-    pub async fn run(self) {
-        let conn = self.connect_to_server().await;
-        let (_write, mut recv_server_msg) = conn.split();
-        let mut user_command_reader = CommandLineReader::new();
-
-        loop {
-            select! {
-                Some(Ok(m)) = recv_server_msg.next() => handle_server_message(m).await,
-                input = user_command_reader.next() => handle_user_command(input).await,
-            }
-        }
-    }
 }
 
-struct CommandLineReader {
-    reader: tokio::io::BufReader<tokio::io::Stdin>,
+pub struct Frontend {
+    reader: BufReader<Stdin>,
 }
 
-impl CommandLineReader {
+impl Frontend {
     pub fn new() -> Self {
-        let reader: tokio::io::BufReader<tokio::io::Stdin> = BufReader::new(tokio::io::stdin());
-        CommandLineReader { reader }
+        let reader: BufReader<Stdin> = BufReader::new(tokio::io::stdin());
+        Frontend { reader }
     }
 
     pub async fn next(&mut self) -> Command {
@@ -72,12 +87,4 @@ impl CommandLineReader {
         let line = String::from_utf8(buffer).expect("Could not decode input");
         Command::new(line).expect("Could not build command")
     }
-}
-
-async fn handle_server_message(_message: Message) {
-    println!("Received message from server");
-}
-
-async fn handle_user_command(_cmd: Command) {
-    println!("Handeling command");
 }
