@@ -1,4 +1,4 @@
-This is a simple implementation of both a chatclient and cahtserver in rust.
+This is a simple implementation of both a chatclient and chatserver in rust.
 
 Server can be started with:
 
