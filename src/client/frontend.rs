@@ -1,27 +1,8 @@
-use serde::{Deserialize, Serialize};
+use crate::server::communication::client::{ClientMessage, Message};
 use std::error;
 use tokio::io::{AsyncBufReadExt, BufReader, Stdin};
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ListChatRoomsCommand {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MakeChatRoomCommand {
-    pub room_name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct JoinChatRoomCommand {
-    pub room_name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum Command {
-    ListChatRooms(ListChatRoomsCommand),
-    JoinChatRoom(JoinChatRoomCommand),
-    MakeChatRoom(MakeChatRoomCommand),
-    Message(String),
-}
+pub type Command = ClientMessage;
 
 impl Command {
     pub fn from_arguments(arguments: Vec<String>) -> Result<Command, Box<dyn error::Error>> {
@@ -31,24 +12,24 @@ impl Command {
 
         let keyword = arguments.next().expect("expected args");
 
-        let command = match &keyword[..] {
-            "make" => Command::MakeChatRoom(MakeChatRoomCommand {
-                room_name: arguments
-                    .next()
-                    .ok_or_else(|| "make chat room not enough args")?,
-            }),
-            "list" => Command::ListChatRooms(ListChatRoomsCommand {}),
-            "join" => Command::JoinChatRoom(JoinChatRoomCommand {
-                room_name: arguments
-                    .next()
-                    .ok_or_else(|| "make join chat room not enough args")?,
-            }),
+        let _command = match &keyword[..] {
+            // "make" => Command::MakeChatRoom(MakeChatRoomCommand {
+            //     room_name: arguments
+            //         .next()
+            //         .ok_or_else(|| "make chat room not enough args")?,
+            // }),
+            // "list" => Command::ListChatRooms(ListChatRoomsCommand {}),
+            // "join" => Command::JoinChatRoom(JoinChatRoomCommand {
+            //     room_name: arguments
+            //         .next()
+            //         .ok_or_else(|| "make join chat room not enough args")?,
+            // }),
             _ => {
                 panic!("not a valid commend");
             }
         };
 
-        Ok(command)
+        // Ok(command)
     }
 
     pub fn new(line: String) -> Result<Self, Box<dyn error::Error>> {
@@ -62,7 +43,7 @@ impl Command {
 
             return Ok(Command::from_arguments(args)?);
         } else {
-            return Ok(Command::Message(line));
+            return Ok(Command::SendMessage(Message::new(line)));
         }
     }
 }
@@ -77,7 +58,7 @@ impl Frontend {
         Frontend { reader }
     }
 
-    pub async fn next(&mut self) -> Command {
+    pub async fn next_command(&mut self) -> Command {
         let mut buffer = Vec::new();
         self.reader
             .read_until(b'\n', &mut buffer)
