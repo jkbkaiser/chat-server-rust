@@ -6,7 +6,6 @@ pub enum ClientMessage {
     MakeChatRoom(MakeChatRoomRequest),
     JoinChatRoom(JoinChatRoomRequest),
     ListChatRooms(),
-
 }
 
 #[derive(Serialize, Deserialize)]
@@ -20,7 +19,6 @@ impl SendMessageRequest {
     }
 }
 
-
 #[derive(Serialize, Deserialize)]
 pub struct MakeChatRoomRequest {
     pub name: String,
@@ -31,7 +29,6 @@ impl MakeChatRoomRequest {
         Self { name }
     }
 }
-
 
 #[derive(Serialize, Deserialize)]
 pub struct JoinChatRoomRequest {

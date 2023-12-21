@@ -1,16 +1,16 @@
-pub mod communication;
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 
 use bincode;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::{
+    net::{TcpListener, TcpStream},
+    sync::broadcast,
+    sync::broadcast::{Receiver, Sender},
+};
 
-use std::sync::Arc;
-use std::sync::Mutex;
-
-use tokio::sync::broadcast;
-use tokio::sync::broadcast::Receiver;
-use tokio::sync::broadcast::Sender;
-
-// use tokio::spawn;
 use tokio_tungstenite::{accept_async, tungstenite, WebSocketStream};
 
 use futures_util::stream::StreamExt;
@@ -19,14 +19,10 @@ use futures_util::SinkExt;
 use crate::server::communication::client::{
     ClientMessage, JoinChatRoomRequest, MakeChatRoomRequest, SendMessageRequest,
 };
-// use futures_util::stream::{SplitSink, SplitStream};
 
-use std::{collections::HashMap, net::SocketAddr};
-// use self::communication::client::{ClientMessage, Message};
+pub mod communication;
 
 type MyWebSocketStream = WebSocketStream<TcpStream>;
-// type MyRead = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
-// type MyWrite = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 
 #[derive(Clone, Debug)]
 pub struct ChatMessage {
@@ -94,7 +90,7 @@ impl Server {
 
     pub async fn run(&self) {
         println!("Starting server");
-        
+
         let mut client_id = 0;
 
         let listener = TcpListener::bind(&self.ip_addr).await.unwrap();
@@ -123,14 +119,14 @@ impl Server {
 
 // Client processes can either recv from the channel of the currently joined room or the actuall client
 
-async fn handle_connection(mut ws: MyWebSocketStream, rooms: Arc<Mutex<ChatRooms>>, client_id: i32) {
+async fn handle_connection(
+    mut ws: MyWebSocketStream,
+    rooms: Arc<Mutex<ChatRooms>>,
+    client_id: i32,
+) {
     println!("Handeling");
 
-    // let mut send: Option<Sender<ChatMessage>> = None;
-    // let mut recv: Option<Receiver<ChatMessage>> = None;
-
     let (mut send, mut recv) = broadcast::channel(1);
-
 
     loop {
         tokio::select! {
@@ -139,7 +135,7 @@ async fn handle_connection(mut ws: MyWebSocketStream, rooms: Arc<Mutex<ChatRooms
                     Ok(tungstenite::Message::Binary(msg)) => {
                         let message: ClientMessage =
                             bincode::deserialize(&msg).expect("Failed to deserialize");
-    
+
                         match message {
                             ClientMessage::SendMessage(SendMessageRequest { content }) => {
                                 println!("received send message: {}", content);
@@ -149,7 +145,7 @@ async fn handle_connection(mut ws: MyWebSocketStream, rooms: Arc<Mutex<ChatRooms
                                 println!("received join chat room: {}", name);
                                 let rooms = rooms.lock().unwrap();
                                 let room = rooms.join_room(name);
-                                
+
                                 recv = room.send.subscribe();
                                 send = room.send.clone();
                             }

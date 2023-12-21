@@ -1,4 +1,9 @@
-// TODO:
+// TODO
+// - Handle invalid commands
+// - Room names
+// - Usernames
+// - List command
+// - Refactoring
 // - Error handling
 use chat_server::client::Client;
 use clap::Parser;

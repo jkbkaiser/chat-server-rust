@@ -1,8 +1,9 @@
 // TODO:
 // - Error handling
-use clap::Parser;
+// - Persistent rooms?
 use chat_server::server::Server;
-use std::net::{SocketAddr, SocketAddrV4, Ipv4Addr};
+use clap::Parser;
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 #[derive(Parser)]
 struct Args {

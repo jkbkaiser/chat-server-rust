@@ -1,21 +1,14 @@
-pub mod frontend;
-use std::net::SocketAddr;
-
-use crate::client::frontend::Frontend;
 use bincode;
-use futures_util::{
-    // stream::{SplitSink, SplitStream},
-    SinkExt,
-    StreamExt,
-};
-
-use tokio::net::TcpStream;
-use tokio::select;
+use futures_util::{SinkExt, StreamExt};
+use std::net::SocketAddr;
+use tokio::{net::TcpStream, select};
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
+pub mod frontend;
+
+use crate::client::frontend::Frontend;
+
 type MyWebSocketStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
-// type MyRead = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
-// type MyWrite = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 
 fn socket_address_to_websocket_url(socket_address: SocketAddr) -> String {
     format!("ws://{}", socket_address.to_string())
@@ -56,11 +49,9 @@ impl Client {
         loop {
             select! {
                 Some(Ok(m)) = recv_server_msg.next() => {
-                    println!("Received message from server {m}");
+                    frontend.print_message(m.to_string());
                 }
                 command = frontend.next_command() => {
-                    println!("Handeling command");
-
                     let binary = bincode::serialize(&command).expect("could not serialize");
                     write.send(Message::Binary(binary)).await.expect("failed to send message");
                 },
