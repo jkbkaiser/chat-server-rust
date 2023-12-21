@@ -2,16 +2,44 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub enum ClientMessage {
-    SendMessage(Message),
+    SendMessage(SendMessageRequest),
+    MakeChatRoom(MakeChatRoomRequest),
+    JoinChatRoom(JoinChatRoomRequest),
+    ListChatRooms(),
+
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Message {
+pub struct SendMessageRequest {
     pub content: String,
 }
 
-impl Message {
+impl SendMessageRequest {
     pub fn new(content: String) -> Self {
-        Message { content }
+        Self { content }
+    }
+}
+
+
+#[derive(Serialize, Deserialize)]
+pub struct MakeChatRoomRequest {
+    pub name: String,
+}
+
+impl MakeChatRoomRequest {
+    pub fn new(name: String) -> Self {
+        Self { name }
+    }
+}
+
+
+#[derive(Serialize, Deserialize)]
+pub struct JoinChatRoomRequest {
+    pub name: String,
+}
+
+impl JoinChatRoomRequest {
+    pub fn new(name: String) -> Self {
+        JoinChatRoomRequest { name }
     }
 }

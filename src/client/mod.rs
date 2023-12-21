@@ -55,21 +55,16 @@ impl Client {
 
         loop {
             select! {
-                Some(Ok(m)) = recv_server_msg.next() => handle_server_message(m).await,
+                Some(Ok(m)) = recv_server_msg.next() => {
+                    println!("Received message from server {m}");
+                }
                 command = frontend.next_command() => {
                     println!("Handeling command");
 
                     let binary = bincode::serialize(&command).expect("could not serialize");
-                    // let message: SendMessage =
-                    //     bincode::deserialize(&binary).expect("Failed to deserialize");
-
                     write.send(Message::Binary(binary)).await.expect("failed to send message");
                 },
             }
         }
     }
-}
-
-async fn handle_server_message(_message: Message) {
-    println!("Received message from server");
 }

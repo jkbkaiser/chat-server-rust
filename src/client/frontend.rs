@@ -1,4 +1,4 @@
-use crate::server::communication::client::{ClientMessage, Message};
+use crate::server::communication::client::{ClientMessage, JoinChatRoomRequest, MakeChatRoomRequest, SendMessageRequest};
 use std::error;
 use tokio::io::{AsyncBufReadExt, BufReader, Stdin};
 
@@ -12,24 +12,24 @@ impl Command {
 
         let keyword = arguments.next().expect("expected args");
 
-        let _command = match &keyword[..] {
-            // "make" => Command::MakeChatRoom(MakeChatRoomCommand {
-            //     room_name: arguments
-            //         .next()
-            //         .ok_or_else(|| "make chat room not enough args")?,
-            // }),
-            // "list" => Command::ListChatRooms(ListChatRoomsCommand {}),
-            // "join" => Command::JoinChatRoom(JoinChatRoomCommand {
-            //     room_name: arguments
-            //         .next()
-            //         .ok_or_else(|| "make join chat room not enough args")?,
-            // }),
+        let command = match &keyword[..] {
+            "make" => Command::MakeChatRoom(MakeChatRoomRequest {
+                name: arguments
+                    .next()
+                    .ok_or_else(|| "make chat room not enough args")?,
+            }),
+            "join" => Command::JoinChatRoom(JoinChatRoomRequest {
+                name: arguments
+                    .next()
+                    .ok_or_else(|| "make join chat room not enough args")?,
+            }),
+            "list" => Command::ListChatRooms(),
             _ => {
                 panic!("not a valid commend");
             }
         };
 
-        // Ok(command)
+        Ok(command)
     }
 
     pub fn new(line: String) -> Result<Self, Box<dyn error::Error>> {
@@ -43,7 +43,7 @@ impl Command {
 
             return Ok(Command::from_arguments(args)?);
         } else {
-            return Ok(Command::SendMessage(Message::new(line)));
+            return Ok(Command::SendMessage(SendMessageRequest::new(line)));
         }
     }
 }
