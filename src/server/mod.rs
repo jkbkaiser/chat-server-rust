@@ -14,6 +14,7 @@ use tokio::sync::broadcast::Sender;
 use tokio_tungstenite::{accept_async, tungstenite, WebSocketStream};
 
 use futures_util::stream::StreamExt;
+use futures_util::SinkExt;
 
 use crate::server::communication::client::{
     ClientMessage, JoinChatRoomRequest, MakeChatRoomRequest, SendMessageRequest,
@@ -30,6 +31,7 @@ type MyWebSocketStream = WebSocketStream<TcpStream>;
 #[derive(Clone, Debug)]
 pub struct ChatMessage {
     content: String,
+    client_id: i32,
 }
 
 pub struct ChatRoom {
@@ -92,6 +94,8 @@ impl Server {
 
     pub async fn run(&self) {
         println!("Starting server");
+        
+        let mut client_id = 0;
 
         let listener = TcpListener::bind(&self.ip_addr).await.unwrap();
         while let Ok((stream, addr)) = listener.accept().await {
@@ -103,7 +107,8 @@ impl Server {
 
                     let t = self.rooms.clone();
 
-                    tokio::spawn(async move { handle_connection(ws, t).await });
+                    tokio::spawn(async move { handle_connection(ws, t, client_id).await });
+                    client_id += 1;
                 }
                 Err(err) => {
                     println!("Failed to connect {err:?}");
@@ -118,7 +123,7 @@ impl Server {
 
 // Client processes can either recv from the channel of the currently joined room or the actuall client
 
-async fn handle_connection(mut ws: MyWebSocketStream, rooms: Arc<Mutex<ChatRooms>>) {
+async fn handle_connection(mut ws: MyWebSocketStream, rooms: Arc<Mutex<ChatRooms>>, client_id: i32) {
     println!("Handeling");
 
     // let mut send: Option<Sender<ChatMessage>> = None;
@@ -138,7 +143,7 @@ async fn handle_connection(mut ws: MyWebSocketStream, rooms: Arc<Mutex<ChatRooms
                         match message {
                             ClientMessage::SendMessage(SendMessageRequest { content }) => {
                                 println!("received send message: {}", content);
-                                send.send(ChatMessage{ content }).expect("Could not send to chatroom");
+                                send.send(ChatMessage{ client_id, content }).expect("Could not send to chatroom");
                             }
                             ClientMessage::JoinChatRoom(JoinChatRoomRequest { name }) => {
                                 println!("received join chat room: {}", name);
@@ -166,11 +171,12 @@ async fn handle_connection(mut ws: MyWebSocketStream, rooms: Arc<Mutex<ChatRooms
                     }
                 }
             }
-            Ok(t) = recv.recv() => {
-                println!("Received message from room channel")
+            Ok(m) = recv.recv() => {
+                if m.client_id != client_id {
+                    ws.send(tungstenite::Message::Text(m.content)).await.expect("failed send message to client");
+                }
+                println!("Received message from room channel");
             }
         }
     }
-
-    println!("Finished handeling")
 }

@@ -35,6 +35,7 @@ impl Command {
     pub fn new(line: String) -> Result<Self, Box<dyn error::Error>> {
         if line.starts_with("/") {
             let args: Vec<String> = line
+                .trim()
                 .get(1..)
                 .ok_or("test")?
                 .split(" ")
