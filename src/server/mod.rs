@@ -8,7 +8,7 @@ use bincode;
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::broadcast,
-    sync::broadcast::{Receiver, Sender},
+    sync::broadcast::Sender,
 };
 
 use tokio_tungstenite::{accept_async, tungstenite, WebSocketStream};
@@ -16,8 +16,12 @@ use tokio_tungstenite::{accept_async, tungstenite, WebSocketStream};
 use futures_util::stream::StreamExt;
 use futures_util::SinkExt;
 
-use crate::server::communication::client::{
-    ClientMessage, JoinChatRoomRequest, MakeChatRoomRequest, SendMessageRequest,
+use crate::server::communication::{
+    client::{
+        ChangeNameRequest, ClientMessage, JoinChatRoomRequest, MakeChatRoomRequest,
+        SendMessageRequest,
+    },
+    server::{NewMessageRequest, ServerMessage},
 };
 
 pub mod communication;
@@ -27,24 +31,18 @@ type MyWebSocketStream = WebSocketStream<TcpStream>;
 #[derive(Clone, Debug)]
 pub struct ChatMessage {
     content: String,
+    client_name: String,
     client_id: i32,
 }
 
 pub struct ChatRoom {
-    // channel/
     send: Sender<ChatMessage>,
-    recv: Receiver<ChatMessage>,
 }
 
 impl ChatRoom {
     fn new() -> Self {
-        let (send, recv) = broadcast::channel(10);
-
-        Self { send, recv }
-    }
-
-    fn send_message(&self, message: ChatMessage) {
-        self.send.send(message).expect("Could not send message");
+        let (send, _) = broadcast::channel(10);
+        Self { send }
     }
 }
 
@@ -76,11 +74,9 @@ fn socket_address_to_websocket_url(socket_address: SocketAddr) -> String {
 pub struct Server {
     ip_addr: String,
     rooms: Arc<Mutex<ChatRooms>>,
-    // connections: Vec<i32>,
 }
 
 impl Server {
-    // TODO lib for parsing ips
     pub fn new(ip_addr: SocketAddr) -> Self {
         return Server {
             ip_addr: socket_address_to_websocket_url(ip_addr),
@@ -100,9 +96,7 @@ impl Server {
             match accept_async(stream).await {
                 Ok(ws) => {
                     println!("handshake completed");
-
                     let t = self.rooms.clone();
-
                     tokio::spawn(async move { handle_connection(ws, t, client_id).await });
                     client_id += 1;
                 }
@@ -125,7 +119,7 @@ async fn handle_connection(
     client_id: i32,
 ) {
     println!("Handeling");
-
+    let mut client_name = format!("User{client_id}");
     let (mut send, mut recv) = broadcast::channel(1);
 
     loop {
@@ -139,7 +133,7 @@ async fn handle_connection(
                         match message {
                             ClientMessage::SendMessage(SendMessageRequest { content }) => {
                                 println!("received send message: {}", content);
-                                send.send(ChatMessage{ client_id, content }).expect("Could not send to chatroom");
+                                send.send(ChatMessage{ client_id, client_name: client_name.clone(), content }).expect("Could not send to chatroom");
                             }
                             ClientMessage::JoinChatRoom(JoinChatRoomRequest { name }) => {
                                 println!("received join chat room: {}", name);
@@ -153,6 +147,10 @@ async fn handle_connection(
                                 println!("received make chat room: {}", name);
                                 let mut rooms = rooms.lock().unwrap();
                                 rooms.new_room(name);
+                            }
+                            ClientMessage::ChangeName(ChangeNameRequest { new_name }) => {
+                                client_name = new_name;
+                                println!("received change name");
                             }
                             ClientMessage::ListChatRooms() => {
                                 println!("received list chat rooms");
@@ -169,7 +167,9 @@ async fn handle_connection(
             }
             Ok(m) = recv.recv() => {
                 if m.client_id != client_id {
-                    ws.send(tungstenite::Message::Text(m.content)).await.expect("failed send message to client");
+                    let client_msg = ServerMessage::NewMessage(NewMessageRequest::new(m.content, m.client_name));
+                    let client_msg = bincode::serialize(&client_msg).expect("Could not serialize msg");
+                    ws.send(tungstenite::Message::Binary(client_msg)).await.expect("failed send message to client");
                 }
                 println!("Received message from room channel");
             }

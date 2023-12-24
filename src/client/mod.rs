@@ -2,11 +2,14 @@ use bincode;
 use futures_util::{SinkExt, StreamExt};
 use std::net::SocketAddr;
 use tokio::{net::TcpStream, select};
-use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{
+    connect_async, tungstenite, tungstenite::Message, MaybeTlsStream, WebSocketStream,
+};
 
 pub mod frontend;
 
 use crate::client::frontend::Frontend;
+use crate::server::communication::server::ServerMessage;
 
 type MyWebSocketStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -48,8 +51,16 @@ impl Client {
 
         loop {
             select! {
-                Some(Ok(m)) = recv_server_msg.next() => {
-                    frontend.print_message(m.to_string());
+                Some(Ok(tungstenite::Message::Binary(msg))) = recv_server_msg.next() => {
+                    let message: ServerMessage =
+                        bincode::deserialize(&msg).expect("Failed to deserialize");
+
+                    match message {
+                        ServerMessage::NewMessage(m) => {
+                            frontend.print_message(m.content, m.user_name);
+                        }
+                    }
+
                 }
                 command = frontend.next_command() => {
                     let binary = bincode::serialize(&command).expect("could not serialize");

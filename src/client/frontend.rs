@@ -1,10 +1,10 @@
-use std::{error, io, io::Write, io::stdout};
-use tokio::io::{AsyncBufReadExt, BufReader, Stdin};
-use crossterm::{cursor, ExecutableCommand, terminal};
+use crossterm::{cursor, terminal, ExecutableCommand};
 use std::process;
+use std::{error, io, io::stdout, io::Write};
+use tokio::io::{AsyncBufReadExt, BufReader, Stdin};
 
 use crate::server::communication::client::{
-    ClientMessage, JoinChatRoomRequest, MakeChatRoomRequest, SendMessageRequest,
+    ChangeNameRequest, ClientMessage, JoinChatRoomRequest, MakeChatRoomRequest, SendMessageRequest,
 };
 
 pub type Command = ClientMessage;
@@ -27,7 +27,10 @@ impl Command {
                     .ok_or_else(|| "make join chat room not enough args")?,
             }),
             "list" => Command::ListChatRooms(),
-            "exit" => {process::exit(0)},
+            "cname" => Command::ChangeName(ChangeNameRequest {
+                new_name: arguments.next().ok_or_else(|| "cname not enough args")?,
+            }),
+            "exit" => process::exit(0),
             _ => {
                 panic!("not a valid commend");
             }
@@ -48,7 +51,9 @@ impl Command {
 
             return Ok(Command::from_arguments(args)?);
         } else {
-            return Ok(Command::SendMessage(SendMessageRequest::new(line.trim().to_string())));
+            return Ok(Command::SendMessage(SendMessageRequest::new(
+                line.trim().to_string(),
+            )));
         }
     }
 }
@@ -59,7 +64,6 @@ fn crop_letters(s: &str, pos: usize) -> &str {
         None => "",
     }
 }
-
 
 fn is_command(line: String) -> bool {
     line.starts_with("/")
@@ -73,44 +77,84 @@ pub struct Frontend {
 impl Frontend {
     pub fn new() -> Self {
         let reader: BufReader<Stdin> = BufReader::new(tokio::io::stdin());
-        let f =Frontend { reader, current_chatroom: String::from("None") };
+        let f = Frontend {
+            reader,
+            current_chatroom: String::from("None"),
+        };
         f.print_prompt();
         f
     }
 
     pub fn print_prompt(&self) {
         let mut stdout = stdout();
-        stdout.execute(cursor::MoveToColumn(0)).expect("failed to move cursor up");
-        stdout.execute(cursor::MoveUp(2)).expect("failed to move cursor left");
-        stdout.execute(terminal::Clear(terminal::ClearType::FromCursorDown)).expect("Could not clear");
-        print!("------------------------\n(room: {})\n⤷ ", self.current_chatroom);
+        stdout
+            .execute(cursor::MoveToColumn(0))
+            .expect("failed to move cursor up");
+        stdout
+            .execute(cursor::MoveUp(2))
+            .expect("failed to move cursor left");
+        stdout
+            .execute(terminal::Clear(terminal::ClearType::FromCursorDown))
+            .expect("Could not clear");
+        print!(
+            "------------------------\n(room: {})\n⤷ ",
+            self.current_chatroom
+        );
         let _ = io::stdout().flush();
     }
 
-    pub fn print_message(&self, msg: String) {
+    pub fn print_message(&self, msg: String, usr: String) {
         let mut stdout = stdout();
-        stdout.execute(cursor::MoveUp(2)).expect("failed to move cursor up");
-        stdout.execute(cursor::MoveToColumn(0)).expect("failed to move cursor left");
-        stdout.execute(terminal::Clear(terminal::ClearType::FromCursorDown)).expect("Could not clear");
-        print!("UnknownUser: {msg}\n-------------------------\n(room: {})\n⤷ ", self.current_chatroom);
+        stdout
+            .execute(cursor::MoveUp(2))
+            .expect("failed to move cursor up");
+        stdout
+            .execute(cursor::MoveToColumn(0))
+            .expect("failed to move cursor left");
+        stdout
+            .execute(terminal::Clear(terminal::ClearType::FromCursorDown))
+            .expect("Could not clear");
+        print!(
+            "{usr}: {msg}\n-------------------------\n(room: {})\n⤷ ",
+            self.current_chatroom
+        );
         let _ = io::stdout().flush();
     }
 
     pub fn print_command(&self, msg: String) {
         let mut stdout = stdout();
-        stdout.execute(cursor::MoveUp(3)).expect("failed to move cursor up");
-        stdout.execute(cursor::MoveToColumn(0)).expect("failed to move cursor left");
-        stdout.execute(terminal::Clear(terminal::ClearType::FromCursorDown)).expect("Could not clear");
-        print!("-> {}\n-------------------------\n(room: {})\n⤷ ", crop_letters(&msg, 1), self.current_chatroom);
+        stdout
+            .execute(cursor::MoveUp(3))
+            .expect("failed to move cursor up");
+        stdout
+            .execute(cursor::MoveToColumn(0))
+            .expect("failed to move cursor left");
+        stdout
+            .execute(terminal::Clear(terminal::ClearType::FromCursorDown))
+            .expect("Could not clear");
+        print!(
+            "-> {}\n-------------------------\n(room: {})\n⤷ ",
+            crop_letters(&msg, 1),
+            self.current_chatroom
+        );
         let _ = io::stdout().flush();
     }
 
     pub fn print_input(&self, inp: String) {
         let mut stdout = stdout();
-        stdout.execute(cursor::MoveUp(3)).expect("failed to move cursor up");
-        stdout.execute(cursor::MoveToColumn(0)).expect("failed to move cursor left");
-        stdout.execute(terminal::Clear(terminal::ClearType::FromCursorDown)).expect("Could not clear");
-        print!("You: {inp}\n-------------------------\n(room: {})\n⤷ ", self.current_chatroom);
+        stdout
+            .execute(cursor::MoveUp(3))
+            .expect("failed to move cursor up");
+        stdout
+            .execute(cursor::MoveToColumn(0))
+            .expect("failed to move cursor left");
+        stdout
+            .execute(terminal::Clear(terminal::ClearType::FromCursorDown))
+            .expect("Could not clear");
+        print!(
+            "You: {inp}\n-------------------------\n(room: {})\n⤷ ",
+            self.current_chatroom
+        );
         let _ = io::stdout().flush();
     }
 

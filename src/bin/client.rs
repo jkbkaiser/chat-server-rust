@@ -1,7 +1,6 @@
 // TODO
-// - Handle invalid commands
 // - Room names
-// - Usernames
+// - Handle invalid commands
 // - List command
 // - Refactoring
 // - Error handling

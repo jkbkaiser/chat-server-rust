@@ -5,6 +5,7 @@ pub enum ClientMessage {
     SendMessage(SendMessageRequest),
     MakeChatRoom(MakeChatRoomRequest),
     JoinChatRoom(JoinChatRoomRequest),
+    ChangeName(ChangeNameRequest),
     ListChatRooms(),
 }
 
@@ -38,5 +39,16 @@ pub struct JoinChatRoomRequest {
 impl JoinChatRoomRequest {
     pub fn new(name: String) -> Self {
         JoinChatRoomRequest { name }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ChangeNameRequest {
+    pub new_name: String,
+}
+
+impl ChangeNameRequest {
+    pub fn new(new_name: String) -> Self {
+        Self { new_name }
     }
 }
