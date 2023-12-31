@@ -8,13 +8,13 @@ use tokio_tungstenite::{
 
 pub mod frontend;
 
-use crate::client::frontend::Frontend;
+use crate::client::frontend::{Command, Frontend};
 use crate::server::communication::server::ServerMessage;
 
 type MyWebSocketStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 fn socket_address_to_websocket_url(socket_address: SocketAddr) -> String {
-    format!("ws://{}", socket_address.to_string())
+    format!("ws://{}", socket_address)
 }
 
 pub struct Client {
@@ -23,9 +23,9 @@ pub struct Client {
 
 impl Client {
     pub fn new(socket_address: SocketAddr) -> Self {
-        return Client {
+        Client {
             websocket_url: socket_address_to_websocket_url(socket_address),
-        };
+        }
     }
 
     pub async fn connect_to_server(&self) -> MyWebSocketStream {
@@ -34,7 +34,7 @@ impl Client {
         match connect_async(&self.websocket_url).await {
             Ok((ws_stream, _)) => {
                 println!("Connected to server");
-                return ws_stream;
+                ws_stream
             }
             Err(err) => {
                 panic!("Failed to connect to server {err:?}");
@@ -59,12 +59,57 @@ impl Client {
                         ServerMessage::NewMessage(m) => {
                             frontend.print_message(m.content, m.user_name);
                         }
+                        ServerMessage::JoinedChatRoom(m) => {
+                            frontend.current_chatroom = m.name;
+                            frontend.print_prompt();
+                        }
                     }
 
                 }
                 command = frontend.next_command() => {
-                    let binary = bincode::serialize(&command).expect("could not serialize");
-                    write.send(Message::Binary(binary)).await.expect("failed to send message");
+                    match command {
+                        Some(Command::JoinChatRoom(_)) => {
+                            let t = command.unwrap();
+                            let binary = bincode::serialize(&t).expect("could not serialize");
+                            write.send(Message::Binary(binary)).await.expect("failed to send message");
+                            frontend.current_chatroom = String::from("Connecting...");
+                            // println!("Sending join chat room")
+                        },
+                        Some(Command::MakeChatRoom(_)) => {
+                            let t = command.unwrap();
+                            let binary = bincode::serialize(&t).expect("could not serialize");
+                            write.send(Message::Binary(binary)).await.expect("failed to send message");
+                            // println!("Sending make chat room")
+                        },
+                        Some(Command::ListChatRooms()) => {
+                            let t = command.unwrap();
+                            let binary = bincode::serialize(&t).expect("could not serialize");
+                            write.send(Message::Binary(binary)).await.expect("failed to send message");
+                            // println!("Sending list chat rooms")
+                        }
+                        Some(Command::ChangeName(_)) => {
+                            let t = command.unwrap();
+                            let binary = bincode::serialize(&t).expect("could not serialize");
+                            write.send(Message::Binary(binary)).await.expect("failed to send message");
+                            // println!("Sending Change name")
+                        }
+                        Some(Command::SendMessage(_)) => {
+                            let t = command.unwrap();
+                            let binary = bincode::serialize(&t).expect("could not serialize");
+                            write.send(Message::Binary(binary)).await.expect("failed to send message");
+                            // println!("Sending send message")
+                        }
+                        Some(Command::Help()) => {
+                            frontend.print_help()
+                        }
+                        None => {
+                            // println!("Not sending anything")
+                        }
+                        // _ => {
+                        //     let binary = bincode::serialize(&command).expect("could not serialize");
+                        //     write.send(Message::Binary(binary)).await.expect("failed to send message");
+                        // }
+                    }
                 },
             }
         }

@@ -21,7 +21,7 @@ use crate::server::communication::{
         ChangeNameRequest, ClientMessage, JoinChatRoomRequest, MakeChatRoomRequest,
         SendMessageRequest,
     },
-    server::{NewMessageRequest, ServerMessage},
+    server::{JoinChatRoomResponse, NewMessageRequest, ServerMessage},
 };
 
 pub mod communication;
@@ -68,7 +68,7 @@ impl ChatRooms {
 }
 
 fn socket_address_to_websocket_url(socket_address: SocketAddr) -> String {
-    format!("{}", socket_address.to_string())
+    socket_address.to_string()
 }
 
 pub struct Server {
@@ -78,10 +78,10 @@ pub struct Server {
 
 impl Server {
     pub fn new(ip_addr: SocketAddr) -> Self {
-        return Server {
+        Server {
             ip_addr: socket_address_to_websocket_url(ip_addr),
             rooms: Arc::new(Mutex::new(ChatRooms::new())),
-        };
+        }
     }
 
     pub async fn run(&self) {
@@ -113,18 +113,15 @@ impl Server {
 
 // Client processes can either recv from the channel of the currently joined room or the actuall client
 
-async fn handle_connection(
-    mut ws: MyWebSocketStream,
-    rooms: Arc<Mutex<ChatRooms>>,
-    client_id: i32,
-) {
+async fn handle_connection(ws: MyWebSocketStream, rooms: Arc<Mutex<ChatRooms>>, client_id: i32) {
     println!("Handeling");
+    let (mut ws_send, mut ws_recv) = ws.split();
     let mut client_name = format!("User{client_id}");
     let (mut send, mut recv) = broadcast::channel(1);
 
     loop {
         tokio::select! {
-            Some(t) = ws.next() => {
+            Some(t) = ws_recv.next() => {
                 match t {
                     Ok(tungstenite::Message::Binary(msg)) => {
                         let message: ClientMessage =
@@ -137,11 +134,16 @@ async fn handle_connection(
                             }
                             ClientMessage::JoinChatRoom(JoinChatRoomRequest { name }) => {
                                 println!("received join chat room: {}", name);
-                                let rooms = rooms.lock().unwrap();
-                                let room = rooms.join_room(name);
+                                {
+                                    let rooms = rooms.lock().unwrap();
+                                    let room = rooms.join_room(name.clone());
+                                    recv = room.send.subscribe();
+                                    send = room.send.clone();
+                                }
 
-                                recv = room.send.subscribe();
-                                send = room.send.clone();
+                                let client_msg = ServerMessage::JoinedChatRoom(JoinChatRoomResponse::new(name.clone()));
+                                let client_msg = bincode::serialize(&client_msg).expect("Could not serialize msg");
+                                ws_send.send(tungstenite::Message::Binary(client_msg)).await.expect("failed send message to client");
                             }
                             ClientMessage::MakeChatRoom(MakeChatRoomRequest { name }) => {
                                 println!("received make chat room: {}", name);
@@ -155,7 +157,10 @@ async fn handle_connection(
                             ClientMessage::ListChatRooms() => {
                                 println!("received list chat rooms");
                             }
-                        }
+                            ClientMessage::Help() => {
+                                println!("received help");
+                            }
+                       }
                     }
                     Ok(_) => {
                         println!("Recv different type msg");
@@ -169,7 +174,7 @@ async fn handle_connection(
                 if m.client_id != client_id {
                     let client_msg = ServerMessage::NewMessage(NewMessageRequest::new(m.content, m.client_name));
                     let client_msg = bincode::serialize(&client_msg).expect("Could not serialize msg");
-                    ws.send(tungstenite::Message::Binary(client_msg)).await.expect("failed send message to client");
+                    ws_send.send(tungstenite::Message::Binary(client_msg)).await.expect("failed send message to client");
                 }
                 println!("Received message from room channel");
             }

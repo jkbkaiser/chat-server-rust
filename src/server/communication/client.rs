@@ -7,6 +7,7 @@ pub enum ClientMessage {
     JoinChatRoom(JoinChatRoomRequest),
     ChangeName(ChangeNameRequest),
     ListChatRooms(),
+    Help(),
 }
 
 #[derive(Serialize, Deserialize)]
