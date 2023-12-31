@@ -3,6 +3,7 @@
 // - Persistent rooms?
 // - Handle duplicate rooms
 // - Msg when someone joins a room
+// - ReadWriteLock
 use chat_server::server::Server;
 use clap::Parser;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};

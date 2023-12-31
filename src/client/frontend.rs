@@ -202,6 +202,27 @@ impl Frontend {
         let _ = io::stdout().flush();
     }
 
+    pub fn print_rooms(&self, rooms: Vec<String>) {
+        let mut stdout = stdout();
+        stdout
+            .execute(cursor::MoveToColumn(0))
+            .expect("failed to move cursor up");
+        stdout
+            .execute(cursor::MoveUp(2))
+            .expect("failed to move cursor left");
+        stdout
+            .execute(terminal::Clear(terminal::ClearType::FromCursorDown))
+            .expect("Could not clear");
+
+        print!("Chat rooms:\n");
+        print!("\t{}", rooms.join("\n\t"));
+        print!(
+            "\n------------------------\n(room: {})\n⤷ ",
+            self.current_chatroom
+        );
+        let _ = io::stdout().flush();
+    }
+
     pub async fn next_command(&mut self) -> Option<Command> {
         let mut buffer = Vec::new();
         self.reader

@@ -21,7 +21,7 @@ use crate::server::communication::{
         ChangeNameRequest, ClientMessage, JoinChatRoomRequest, MakeChatRoomRequest,
         SendMessageRequest,
     },
-    server::{JoinChatRoomResponse, NewMessageRequest, ServerMessage},
+    server::{JoinChatRoomResponse, ListChatRoomsResponse, NewMessageRequest, ServerMessage},
 };
 
 pub mod communication;
@@ -64,6 +64,10 @@ impl ChatRooms {
 
     fn join_room(&self, name: String) -> &ChatRoom {
         self.rooms.get(&name).expect("Could not find room")
+    }
+
+    fn list(&self) -> Vec<String> {
+        self.rooms.keys().cloned().collect()
     }
 }
 
@@ -156,6 +160,11 @@ async fn handle_connection(ws: MyWebSocketStream, rooms: Arc<Mutex<ChatRooms>>, 
                             }
                             ClientMessage::ListChatRooms() => {
                                 println!("received list chat rooms");
+                                let r = rooms.lock().unwrap().list();
+                                let client_msg = ServerMessage::ListChatRooms(ListChatRoomsResponse::new(r));
+                                let client_msg = bincode::serialize(&client_msg).expect("Could not serialize msg");
+                                ws_send.send(tungstenite::Message::Binary(client_msg)).await.expect("failed send message to client");
+
                             }
                             ClientMessage::Help() => {
                                 println!("received help");

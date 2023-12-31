@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub enum ServerMessage {
     NewMessage(NewMessageRequest),
     JoinedChatRoom(JoinChatRoomResponse),
+    ListChatRooms(ListChatRoomsResponse),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -26,5 +27,16 @@ pub struct JoinChatRoomResponse {
 impl JoinChatRoomResponse {
     pub fn new(name: String) -> Self {
         Self { name }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ListChatRoomsResponse {
+    pub names: Vec<String>,
+}
+
+impl ListChatRoomsResponse {
+    pub fn new(names: Vec<String>) -> Self {
+        Self { names }
     }
 }

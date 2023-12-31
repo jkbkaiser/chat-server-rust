@@ -63,6 +63,10 @@ impl Client {
                             frontend.current_chatroom = m.name;
                             frontend.print_prompt();
                         }
+                        ServerMessage::ListChatRooms(m) => {
+                            frontend.print_rooms(m.names);
+                            frontend.print_prompt();
+                        }
                     }
 
                 }

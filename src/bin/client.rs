@@ -1,8 +1,8 @@
 // TODO
-// - List command
 // - Refactoring
-// - Error handling
-// - Split communcation with server from comm front/backend
+//   - Error handling
+//   - Split communcation with server from comm front/backend
+//   - Docs
 use chat_server::client::Client;
 use clap::Parser;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
