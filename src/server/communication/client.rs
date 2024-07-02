@@ -1,16 +1,16 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ClientMessage {
     SendMessage(SendMessageRequest),
-    MakeChatRoom(MakeChatRoomRequest),
+    MakeChatRoom(ClientMakeChatRoomRequest),
     JoinChatRoom(JoinChatRoomRequest),
     ChangeName(ChangeNameRequest),
     ListChatRooms(),
     Help(),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SendMessageRequest {
     pub content: String,
 }
@@ -21,18 +21,18 @@ impl SendMessageRequest {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct MakeChatRoomRequest {
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ClientMakeChatRoomRequest {
     pub name: String,
 }
 
-impl MakeChatRoomRequest {
+impl ClientMakeChatRoomRequest {
     pub fn new(name: String) -> Self {
         Self { name }
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JoinChatRoomRequest {
     pub name: String,
 }
@@ -43,7 +43,7 @@ impl JoinChatRoomRequest {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ChangeNameRequest {
     pub new_name: String,
 }
