@@ -1,9 +1,3 @@
-// TODO:
-// - Error handling
-// - Persistent rooms?
-// - Handle duplicate rooms
-// - Msg when someone joins a room
-// - ReadWriteLock
 use clap::Parser;
 use miette::Result;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};

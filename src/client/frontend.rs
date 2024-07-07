@@ -111,6 +111,20 @@ impl Frontend {
         Ok(frontend)
     }
 
+    /// Prints any errors
+    pub fn print_err(&self, error: &str) -> Result<()> {
+        clear_lines(2)?;
+
+        print!(
+            "!err: {error}\n------------------------\n(room: {})\n⤷ ",
+            self.current_chatroom
+        );
+
+        flush_io();
+
+        Ok(())
+    }
+
     /// Prints the prompt in the terminal interface
     pub fn print_prompt(&self) -> Result<()> {
         clear_lines(2)?;

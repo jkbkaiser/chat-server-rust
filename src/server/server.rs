@@ -6,7 +6,7 @@ use miette::{miette, IntoDiagnostic, Result};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{broadcast, Mutex},
+    sync::{broadcast, RwLock},
 };
 use tokio_tungstenite::{accept_async, tungstenite::Message, WebSocketStream};
 use uuid::Uuid;
@@ -42,12 +42,22 @@ fn serialize_server_msg(msg: ServerMessage) -> Result<Message> {
     Ok(serialized_msg)
 }
 
+async fn send_server_msg_over_socket(
+    socket: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
+    server_msg: ServerMessage,
+) -> Result<()> {
+    socket
+        .send(serialize_server_msg(server_msg)?)
+        .await
+        .into_diagnostic()
+}
+
 /// Contains the logic for running the server
 pub struct Server {
     /// The socket the server listens on
     socket_addr: SocketAddr,
     /// Datastructure to keep track of all backrooms, etc.
-    backend: Arc<Mutex<Backend>>,
+    backend: Arc<RwLock<Backend>>,
 }
 
 impl Server {
@@ -55,7 +65,7 @@ impl Server {
     pub fn new(socket_addr: SocketAddr) -> Self {
         return Server {
             socket_addr,
-            backend: Arc::new(Mutex::new(Backend::new())),
+            backend: Arc::new(RwLock::new(Backend::new())),
         };
     }
 
@@ -93,7 +103,7 @@ pub struct Handler {
     /// User name
     name: String,
     /// Backend that keeps track of all chatrooms etc
-    backend: Arc<Mutex<Backend>>,
+    backend: Arc<RwLock<Backend>>,
     /// Websocket sender
     ws_send: SplitSink<WebSocketStream<TcpStream>, Message>,
     /// Websocket receiver
@@ -106,7 +116,7 @@ pub struct Handler {
 
 impl Handler {
     /// Instantiates a new handler
-    pub fn new(uuid: Uuid, ws: WebSocketStream<TcpStream>, backend: Arc<Mutex<Backend>>) -> Self {
+    pub fn new(uuid: Uuid, ws: WebSocketStream<TcpStream>, backend: Arc<RwLock<Backend>>) -> Self {
         let (ws_send, ws_recv) = ws.split();
         let (room_send, room_recv) = broadcast::channel(1);
         let name = "anonymous".to_string();
@@ -128,29 +138,47 @@ impl Handler {
 
         match message {
             ClientMessage::MakeChatRoom(ClientMakeChatRoomRequest { name }) => {
-                let mut backend = self.backend.lock().await;
-                backend.new_room(name);
+                let mut backend = self.backend.write().await;
+
+                if let Err(report) = backend.new_room(name) {
+                    let server_msg = ServerMessage::Err(report.to_string());
+                    send_server_msg_over_socket(&mut self.ws_send, server_msg).await?;
+                }
             }
             ClientMessage::ListChatRooms() => {
-                let backend = self.backend.lock().await;
+                let backend = self.backend.read().await;
                 let rooms = backend.list();
                 let server_msg = ServerMessage::ListChatRooms(ListChatRoomsResponse::new(rooms));
-                self.ws_send
-                    .send(serialize_server_msg(server_msg)?)
-                    .await
-                    .into_diagnostic()?;
+                send_server_msg_over_socket(&mut self.ws_send, server_msg).await?;
             }
             ClientMessage::JoinChatRoom(JoinChatRoomRequest { name }) => {
-                let backend = self.backend.lock().await;
-                let room = backend.get_room(name.clone())?;
-                self.room_recv = room.subscribe();
-                self.room_send = room.publish();
+                let backend = self.backend.write().await;
 
-                let server_msg = ServerMessage::JoinedChatRoom(JoinChatRoomResponse::new(name));
-                self.ws_send
-                    .send(serialize_server_msg(server_msg)?)
-                    .await
-                    .expect("failed send message to client");
+                match backend.get_room(name.clone()) {
+                    Ok(room) => {
+                        let new_recv = room.subscribe(&self.name);
+                        let new_send = room.publish();
+
+                        let server_msg =
+                            ServerMessage::JoinedChatRoom(JoinChatRoomResponse::new(name));
+                        send_server_msg_over_socket(&mut self.ws_send, server_msg).await?;
+
+                        self.room_send
+                            .send(ChatMessage {
+                                sender_uuid: self.uuid.to_string(),
+                                sender_name: self.name.clone(),
+                                content: format!("User {} left the chat room", self.name),
+                            })
+                            .into_diagnostic()?;
+
+                        self.room_send = new_send;
+                        self.room_recv = new_recv;
+                    }
+                    Err(report) => {
+                        let server_msg = ServerMessage::Err(report.to_string());
+                        send_server_msg_over_socket(&mut self.ws_send, server_msg).await?;
+                    }
+                }
             }
             ClientMessage::SendMessage(SendMessageRequest { content }) => {
                 self.room_send
@@ -159,7 +187,7 @@ impl Handler {
                         sender_name: self.name.clone(),
                         content,
                     })
-                    .expect("Could not send to chatroom");
+                    .into_diagnostic()?;
             }
             ClientMessage::ChangeName(ChangeNameRequest { new_name }) => {
                 self.name = new_name;

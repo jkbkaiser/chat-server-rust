@@ -77,6 +77,9 @@ impl Client {
                 self.frontend.print_rooms(m.names)?;
                 self.frontend.print_prompt()?;
             }
+            ServerMessage::Err(error) => {
+                self.frontend.print_err(&error)?;
+            }
         }
 
         Ok(())

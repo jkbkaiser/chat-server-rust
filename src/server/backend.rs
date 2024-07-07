@@ -18,7 +18,12 @@ impl ChatRoom {
     }
 
     /// Subscribe to a chatroom
-    pub fn subscribe(&self) -> broadcast::Receiver<ChatMessage> {
+    pub fn subscribe(&self, name: &str) -> broadcast::Receiver<ChatMessage> {
+        let _ = self.send.send(ChatMessage {
+            sender_uuid: "".to_string(),
+            sender_name: "ChatRoom".to_string(),
+            content: format!("User {name} joined the room"),
+        });
         self.send.subscribe()
     }
 
@@ -42,9 +47,15 @@ impl Backend {
     }
 
     /// Creates a new chatroom
-    pub fn new_room(&mut self, name: String) {
-        let room = ChatRoom::new();
-        self.rooms.insert(name, room);
+    pub fn new_room(&mut self, name: String) -> Result<()> {
+        match self.rooms.get(&name) {
+            Some(_) => Err(miette!("Room already exists")),
+            None => {
+                let room = ChatRoom::new();
+                self.rooms.insert(name, room);
+                Ok(())
+            }
+        }
     }
 
     /// Returns a requested chatroom

@@ -5,6 +5,7 @@ pub enum ServerMessage {
     NewMessage(NewMessageRequest),
     JoinedChatRoom(JoinChatRoomResponse),
     ListChatRooms(ListChatRoomsResponse),
+    Err(String),
 }
 
 #[derive(Serialize, Deserialize)]
